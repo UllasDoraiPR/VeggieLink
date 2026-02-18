@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Veggielink — Restock Transport</title>
+  <style>
+    :root{--green:#2b8a3e;--muted:#666}
+    body{font-family:Inter,system-ui,Arial;margin:0;background:#f6f7f9;color:#111}
+    header{background:var(--green);color:#fff;padding:18px 20px;text-align:center}
+    .container{max-width:1100px;margin:20px auto;padding:0 16px}
+    .grid{display:grid;grid-template-columns:1fr 360px;gap:20px}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#fff;border-radius:10px;padding:16px;box-shadow:0 6px 18px rgba(20,20,30,0.06)}
+    h2{color:var(--green);margin:0 0 12px}
+    .catalog{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
+    .prod{border:1px solid #e6e9ee;border-radius:8px;padding:10px;text-align:center}
+    .prod h4{margin:6px 0 6px;font-size:16px}
+    .prod p{margin:0;color:var(--muted);font-size:14px}
+    .btn{background:var(--green);color:#fff;border:none;padding:8px 10px;border-radius:6px;cursor:pointer}
+    .btn:active{transform:translateY(1px)}
+    .small{font-size:13px;color:#444}
+    .cart-list{max-height:420px;overflow:auto;margin-bottom:12px}
+    .cart-item{display:flex;gap:8px;align-items:center;border-bottom:1px solid #f0f2f5;padding:8px 0}
+    .qty{display:inline-flex;align-items:center;gap:6px}
+    .qty button{width:28px;height:28px;border-radius:6px;border:1px solid #ddd;background:white}
+    input[type="text"], select{width:100%;padding:10px;border-radius:8px;border:1px solid #ddd}
+    .muted{color:var(--muted);font-size:13px}
+    .total{font-weight:700;font-size:18px}
+    footer{text-align:center;padding:18px;color:#fff;background:var(--green);margin-top:20px}
+    .flex{display:flex;gap:10px;align-items:center}
+    .center{text-align:center}
+    .location-row{display:flex;gap:8px;align-items:center}
+    .badge{background:#ffefd5;color:#6a4a00;padding:4px 8px;border-radius:6px;font-size:13px}
+    .note{background:#fff7e6;border:1px solid #ffecb3;padding:8px;border-radius:6px;font-size:13px;margin-bottom:10px}
+    .success{background:#e7fbef;border:1px solid #c7f0d5;padding:12px;border-radius:8px;color:#155724;margin-top:10px}
+    .voice-btn{background:#0b5cff;padding:8px 10px;border-radius:6px;color:white;border:none}
+    .lang-switch{display:flex;gap:6px;flex-wrap:wrap}
+    .pill{padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:#fff;cursor:pointer}
+  </style>
+</head>
+<body>
+
+<header>
+  <h1 style="margin:0">Veggielink — Market → Shop Restock</h1>
+  <div id="tagline" class="muted" style="margin-top:6px">Order restock transport from markets to your shop — capture location, catalog, and payment.</div>
+</header>
+
+<main class="container">
+  <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;margin-bottom:12px">
+    <div class="muted small">Voice: <strong id="voiceStatus">off</strong></div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="voice-btn" id="voiceToggle">Start Voice Command</button>
+      <button class="btn" id="repeatOrderBtn">Repeat Last Order</button>
+      <div style="width:8px"></div>
+      <div class="lang-switch" id="langSwitch"></div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: Catalog & Location -->
+    <div>
+      <div class="card" id="locationCard">
+        <h2 id="locTitle">Delivery Location</h2>
+        <p id="locDesc" class="muted">Set your shop location so drivers know where to deliver.</p>
+
+        <div style="display:grid;gap:8px">
+          <input id="addressInput" type="text" placeholder="Enter shop address (or use capture location)">
+          <div class="location-row">
+            <button class="btn" id="btnLocate">Capture Current Location</button>
+            <div id="locStatus" class="muted">No location captured</div>
+          </div>
+          <div class="muted">Latitude: <span id="lat">—</span> &nbsp; Longitude: <span id="lon">—</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2 id="catalogTitle">Catalog — Vegetables & Fruits</h2>
+        <p id="catalogDesc" class="muted">Click <strong>Add</strong> to put items into the cart. Prices shown are per unit indicated.</p>
+
+        <div class="catalog" id="catalog"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2 id="notesTitle">Notes & Pickup Preferences</h2>
+        <div class="note">
+          <div id="pickupNote"><strong>Pickup window:</strong> Select earliest pickup time in the checkout step. Driver will collect and deliver on same day if scheduled during market hours.</div>
+        </div>
+        <label class="small" id="instrLabel">Special instructions for driver (e.g., help loading, call on arrival):</label>
+        <input id="instructions" type="text" placeholder="Write instructions for driver">
+      </div>
+    </div>
+
+    <!-- RIGHT: Cart & Payment -->
+    <div>
+      <div class="card">
+        <h2 id="cartTitle">Your Cart</h2>
+        <div id="cartEmpty" class="muted center">No items yet. Add from catalog.</div>
+        <div class="cart-list" id="cartList" style="display:none"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px">
+          <div class="muted" id="subtotalLabel">Subtotal</div>
+          <div class="total">₹<span id="subtotal">0</span></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="small" id="payLabel">Payment method</label>
+          <select id="paymentMethod" class="muted" style="margin-top:6px;padding:10px;border-radius:8px;border:1px solid #ddd;width:100%">
+            <option value="upi">UPI (QR / Virtual) </option>
+            <option value="cod">Cash on Delivery</option>
+            <option value="card">Card (Mock)</option>
+          </select>
+        </div>
+
+        <div style="margin-top:12px">
+          <label class="small" id="pickupLabel">Preferred pickup time</label>
+          <input id="pickupTime" type="text" placeholder="e.g., 5:00 AM (market)" />
+        </div>
+
+        <button class="btn" id="checkoutBtn" style="width:100%;margin-top:14px">Proceed to Checkout</button>
+
+        <div id="checkoutArea" style="display:none;margin-top:12px"></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h2 id="adminTitle">Admin / Driver Info (Demo)</h2>
+        <div class="muted">This panel shows the order summary that a driver/admin would receive.</div>
+        <div style="margin-top:8px" id="adminPanel">No orders yet.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  © Veggielink Restock — demo site
+</footer>
+
+<script>
+/* ---------------------------
+   Internationalization (simple)
+   --------------------------- */
+const translations = {
+  en: {
+    header: 'Veggielink — Market → Shop Restock',
+    tagline: 'Order restock transport from markets to your shop — capture location, catalog, and payment.',
+    locTitle: 'Delivery Location', locDesc: 'Set your shop location so drivers know where to deliver.',
+    btnLocate: 'Capture Current Location', locStatusNo: 'No location captured', catalogTitle: 'Catalog — Vegetables & Fruits',
+    catalogDesc: 'Click Add to put items into the cart. Prices shown are per unit indicated.', notesTitle: 'Notes & Pickup Preferences',
+    instrLabel: 'Special instructions for driver (e.g., help loading, call on arrival):', cartTitle: 'Your Cart', subtotalLabel: 'Subtotal',
+    payLabel: 'Payment method', pickupLabel: 'Preferred pickup time', checkoutBtn: 'Proceed to Checkout',
+    repeatBtn: 'Repeat Last Order', voiceStart: 'Start Voice Command', voiceStop: 'Stop Voice Command',
+    locationCaptured: 'Location captured', orderConfirmed: 'Order confirmed!'
+  },
+  kn: {
+    header: 'ವೆಗ್ಗೀಲಿಂಕ್ — ಮಾರುಕಟ್ಟೆ → ಅಂಗಡಿ ಪುನರ್‌ಸ್ಟಾಕ್',
+    tagline: 'ನಿಮ್ಮ ಅಂಗಡಿಗೆ ಮಾರುಕಟ್ಟೆಯಿಂದ ಸರಕು ಸಾಗಣೆ ಮತ್ತು ಪಾವತಿ ಕಾಪ್ಚರ್ ಮಾಡಿ.',
+    locTitle: 'ವಿತರಣಾ ಸ್ಥಳ', locDesc: 'ಡೈವರರು ಎಲ್ಲಿ ತಲುಪಬೇಕು ಎಂಬುದನ್ನು ಹೊಂದಿಸಲು ನಿಮ್ಮ ಅಂಗಡಿ ಸ್ಥಳವನ್ನು ಸೆಟ್ ಮಾಡಿ.',
+    btnLocate: 'ಸ್ಥಳ ಹಿಡಿ', locStatusNo: 'ಸ್ಥಳ ಹಿಡಿಯಿಲ್ಲ', catalogTitle: 'ಕ್ಯಾಟಲಾಗ್ — ತರಕಾರಿಗಳು ಮತ್ತು ಹಣ್ಣುಗಳು',
+    catalogDesc: 'ಕಾರ್ಟಿಗೆ ಸೇರಿಸಲು Add ಕ್ಲಿಕ್ ಮಾಡಿ. ಬೆಲೆ ಪ್ರತಿ ಘಟಕಕ್ಕೆ ತೋರಿಸಲಾಗಿದೆ.', notesTitle: 'ನೋಟ್ಸ್ & ಪಿಕ್‌ಅಪ್ ಆಯ್ಕೆಗಳು',
+    instrLabel: 'ಡೈವರಿಗಾಗಿ ವಿಶೇಷ ಸೂಚನೆಗಳು (ಉದಾಹರಣೆಗೆ, ಲೋಡಿಂಗ್ ಸಹಾಯ, ಆಗಮಿಸುವಾಗ ಕರೆ ಮಾಡಿ):', cartTitle: 'ನಿಮ್ಮ ಕಾರ್ಟ್', subtotalLabel: 'ಒಟ್ಟು ಮೊತ್ತ',
+    payLabel: 'ಪಾವತಿ ವಿಧಾನ', pickupLabel: 'ಆವಶ್ಯಕ ಪಿಕ್‌ಅಪ್ ಸಮಯ', checkoutBtn: 'ಚೆಕ್‌ಔಟ್‌ಗೆ ಮುಂದೆ',
+    repeatBtn: 'ಕೊನೆಯ ಆರ್ಡರ್ ಪುನರಾವರ್ತಿ', voiceStart: 'ದೊಡ್ಡ ಮಾತು ಆರಂಭಿಸಿ', voiceStop: 'ದೊಡ್ಡ ಮಾತು ನಿಲ್ಲಿಸಿ',
+    locationCaptured: 'ಸ್ಥಳ ಹಿಡಿದುಕೊಳ್ಳಲಾಗಿದೆ', orderConfirmed: 'ಆರ್ಡರ್ ದೃಢೀಕರಿಸಲಾಗಿದೆ!'
+  },
+  hi: {
+    header: 'वेज़ीलिंक — बाजार → दुकान पुनःस्टॉक',
+    tagline: 'अपने बाज़ार से दुकान तक ऑर्डर करें — स्थान कैप्चर, कैटलॉग और भुगतान।',
+    locTitle: 'डिलीवरी स्थान', locDesc: 'ड्राइवर को पता चलने के लिए अपनी दुकान का स्थान सेट करें।',
+    btnLocate: 'वर्तमान स्थान पकड़ें', locStatusNo: 'कोई स्थान नहीं पकड़ा गया', catalogTitle: 'कैटलॉग — सब्जियाँ और फल',
+    catalogDesc: 'कार्ट में जोड़ने के लिए Add पर क्लिक करें। कीमत प्रति यूनिट दिखाई गयी है।', notesTitle: 'नोट्स और पिकअप प्राथमिकताएँ',
+    instrLabel: 'ड्राइवर के लिए विशेष निर्देश (उदा. लोडिंग में मदद करें, आने पर कॉल करें):', cartTitle: 'आपका कार्ट', subtotalLabel: 'उप-योग',
+    payLabel: 'भुगतान विधि', pickupLabel: 'पसंदीदा पिकअप समय', checkoutBtn: 'चेकआउट पर जाएँ',
+    repeatBtn: 'पिछला ऑर्डर दोहराएँ', voiceStart: 'वॉइस कमांड शुरू करें', voiceStop: 'वॉइस कमांड रोकें',
+    locationCaptured: 'स्थान कैप्चर किया गया', orderConfirmed: 'ऑर्डर पुष्टि हुई!'
+  },
+  ta: {
+    header: 'வேக்ஜிலிங்க் — சந்தை → கடை மறுபதிவு',
+    tagline: 'சந்தையிலிருந்து உங்கள் கடைக்கு மீள்பரிசு கோருங்கள் — இடம், பட்டியல் மற்றும் கட்டணம்.',
+    locTitle: 'டெலிவரி இடம்', locDesc: 'டிரைவருக்கு எங்கு வழங்க வேண்டும் என்பதை தெரிவிக்க உங்கள் கடை இடத்தை அமைக்கவும்.',
+    btnLocate: 'தற்போதைய இடத்தைப் பிடி', locStatusNo: 'இடம் பிடிக்கப்படவில்லை', catalogTitle: 'பட்டியல் — காய்கறி & பழங்கள்',
+    catalogDesc: 'பட்டையில் சேர Add என்பதைக் கிளிக் செய்க. விலை அலகிற்கு காட்டப்படுகிறது.', notesTitle: 'குறிப்புகள் & பிக்-அப் விருப்பங்கள்',
+    instrLabel: 'டிரைவருக்கான குறிப்புகள் (உதாரணம்: ஏற்றுதலில் உதவி, வரும்போது அழைக்கவும்):', cartTitle: 'உங்கள் கார்ட்', subtotalLabel: 'மொத்தம்',
+    payLabel: 'கட்டண முறை', pickupLabel: 'விரிந்த பிக்-அப் நேரம்', checkoutBtn: 'கொண்டுவருதல்',
+    repeatBtn: 'கடந்த ஆர்டர் மீண்டும்', voiceStart: 'வாய்ஸ் கட்டளை தொடங்கு', voiceStop: 'வாய்ஸ் கட்டளை நிறுத்து',
+    locationCaptured: 'இடம் பிடிக்கப்பட்டது', orderConfirmed: 'ஆர்டர் உறுதியாகியது!'
+  }
+};
+let lang = localStorage.getItem('veggielink_lang') || 'en';
+
+function setLanguage(code){
+  lang = code; localStorage.setItem('veggielink_lang', code);
+  const t = translations[code] || translations.en;
+  document.querySelector('header h1').textContent = t.header;
+  document.getElementById('tagline').textContent = t.tagline;
+  document.getElementById('locTitle').textContent = t.locTitle;
+  document.getElementById('locDesc').textContent = t.locDesc;
+  document.getElementById('btnLocate').textContent = t.btnLocate;
+  document.getElementById('locStatus').textContent = t.locStatusNo;
+  document.getElementById('catalogTitle').textContent = t.catalogTitle;
+  document.getElementById('catalogDesc').textContent = t.catalogDesc;
+  document.getElementById('notesTitle').textContent = t.notesTitle;
+  document.getElementById('instrLabel').textContent = t.instrLabel;
+  document.getElementById('cartTitle').textContent = t.cartTitle;
+  document.getElementById('subtotalLabel').textContent = t.subtotalLabel;
+  document.getElementById('payLabel').textContent = t.payLabel;
+  document.getElementById('pickupLabel').textContent = t.pickupLabel;
+  document.getElementById('checkoutBtn').textContent = t.checkoutBtn;
+  document.getElementById('repeatOrderBtn').textContent = t.repeatBtn;
+  document.getElementById('voiceToggle').textContent = (recognizing? t.voiceStop : t.voiceStart);
+}
+
+/* render language buttons */
+const langSwitch = document.getElementById('langSwitch');
+[['en','EN'],['kn','ಕನ್ನಡ'],['hi','हिंदी'],['ta','தமிழ்']].forEach(([code,label])=>{
+  const p = document.createElement('div'); p.className='pill'; p.textContent = label;
+  p.addEventListener('click', ()=> setLanguage(code));
+  langSwitch.appendChild(p);
+});
+
+/* ---------------------------
+   Sample catalog data
+   --------------------------- */
+const catalogData = [
+  { id:'tomato', name:{en:'Tomato (per kg)',kn:'ಟೊಮೇಟೋ (ಪ್ರತಿ ಕಿಗ್ರಾ)',hi:'टमाटर (प्रति किग्रा)',ta:'தக்காளி (கி.கெ)'}, price:30, unit:'kg' },
+  { id:'potato', name:{en:'Potato (per kg)',kn:'ಅಲೂಗಡ್ಡೆ (ಪ್ರತಿ ಕಿಗ್ರಾ)',hi:'आलू (प्रति किग्रा)',ta:'உருளைக்கிழங்கு (கி.கெ)'}, price:25, unit:'kg' },
+  { id:'onion', name:{en:'Onion (per kg)',kn:' ಈರುಳ್ಳಿ (ಪ್ರತಿ ಕಿಗ್ರಾ)',hi:'प्याज (प्रति किग्रा)',ta:'வெங்காயம் (கி.கெ)'}, price:40, unit:'kg' },
+  { id:'banana', name:{en:'Banana (dozen)',kn:'ಬಾಳೆಹಣ್ಣು (ದರ್ಜನ್)',hi:'कला (दर्जन)',ta:'வாழைப்பழம் (டஜன்)'}, price:50, unit:'dozen' },
+  { id:'apple', name:{en:'Apple (per kg)',kn:'ಸೇಬು (ಪ್ರತಿ ಕಿಗ್ರಾ)',hi:'सेब (प्रति किग्रा)',ta:'பாப்பளம் (கி.கெ)'}, price:150, unit:'kg' },
+  { id:'coriander', name:{en:'Coriander (bundle)',kn:'ಕೊತ್ತಂಬರಿ (ಗುಚ್ಛ)',hi:'धनिया (गठ्ठा)',ta:'கொத்தமல்லி (குழு)'}, price:10, unit:'bundle' },
+];
+
+/* ---------------------------
+   Render catalog
+   --------------------------- */
+const catalogEl = document.getElementById('catalog');
+function renderCatalog(){
+  catalogEl.innerHTML='';
+  catalogData.forEach(p=>{
+    const d = document.createElement('div'); d.className='prod';
+    const title = (p.name[lang] || p.name.en);
+    d.innerHTML = `
+      <h4>${title}</h4>
+      <p class="muted">₹${p.price} • ${p.unit}</p>
+      <div style="margin-top:8px;display:flex;gap:8px;justify-content:center">
+        <input type="number" min="1" value="1" id="qty_${p.id}" style="width:60px;padding:6px;border-radius:6px;border:1px solid #ddd" />
+        <button class="btn" data-id="${p.id}">Add</button>
+      </div>
+    `;
+    catalogEl.appendChild(d);
+  });
+}
+
+/* ---------------------------
+   Cart handling
+   --------------------------- */
+let cart = {}; // id -> {item, qty}
+let recognizing = false; // voice state
+function updateCartUI(){
+  const list = document.getElementById('cartList');
+  const cartEmpty = document.getElementById('cartEmpty');
+  const subtotalEl = document.getElementById('subtotal');
+  list.innerHTML='';
+
+  const ids = Object.keys(cart);
+  if(ids.length===0){ list.style.display='none'; cartEmpty.style.display='block'; subtotalEl.textContent='0'; return; }
+  list.style.display='block'; cartEmpty.style.display='none';
+
+  let subtotal = 0;
+  ids.forEach(id=>{
+    const entry = cart[id];
+    const row = document.createElement('div'); row.className='cart-item';
+    row.innerHTML = `
+      <div style="flex:1">
+        <div style="font-weight:600">${entry.name}</div>
+        <div class="muted">₹${entry.item.price} • ${entry.item.unit}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="qty">
+          <button data-op="dec" data-id="${id}">-</button>
+          <div style="min-width:26px;text-align:center">${entry.qty}</div>
+          <button data-op="inc" data-id="${id}">+</button>
+        </div>
+        <div style="margin-top:6px">₹<span>${entry.item.price * entry.qty}</span></div>
+        <div style="margin-top:6px"><button data-op="del" data-id="${id}" style="background:#ff5c5c;color:#fff;border:none;padding:6px;border-radius:6px;cursor:pointer">Remove</button></div>
+      </div>
+    `;
+    list.appendChild(row);
+    subtotal += entry.item.price * entry.qty;
+  });
+
+  subtotalEl.textContent = subtotal;
+}
+
+/* event: add from catalog (delegate) */
+catalogEl.addEventListener('click', e=>{
+  if(!e.target.matches('.prod .btn') && !e.target.matches('.btn')) return;
+  const btn = e.target.closest('button');
+  if(!btn) return;
+  const id = btn.getAttribute('data-id');
+  if(!id) return;
+  const qtyInput = document.getElementById('qty_'+id);
+  let qty = parseInt(qtyInput.value) || 1;
+  const item = catalogData.find(x=>x.id===id);
+  const name = (item.name[lang] || item.name.en);
+  if(cart[id]) cart[id].qty += qty;
+  else cart[id] = { item, qty, name };
+  updateCartUI();
+});
+
+/* cart buttons (delegate) */
+document.getElementById('cartList').addEventListener('click', e=>{
+  const op = e.target.getAttribute('data-op');
+  const id = e.target.getAttribute('data-id');
+  if(!op || !id) return;
+  if(op==='inc') cart[id].qty++;
+  if(op==='dec'){ cart[id].qty = Math.max(1, cart[id].qty-1); }
+  if(op==='del') delete cart[id];
+  updateCartUI();
+});
+
+/* ---------------------------
+   Location capture
+   --------------------------- */
+const btnLocate = document.getElementById('btnLocate');
+const locStatus = document.getElementById('locStatus');
+btnLocate.addEventListener('click', ()=>{
+  if(!navigator.geolocation){ locStatus.textContent='Geolocation not supported'; return; }
+  locStatus.textContent = 'Requesting location...';
+  navigator.geolocation.getCurrentPosition(pos=>{
+    const lat = pos.coords.latitude.toFixed(6);
+    const lon = pos.coords.longitude.toFixed(6);
+    document.getElementById('lat').textContent = lat;
+    document.getElementById('lon').textContent = lon;
+    locStatus.textContent = translations[lang].locationCaptured || 'Location captured';
+    // pre-fill address input with coordinates (user can edit)
+    document.getElementById('addressInput').value = `Lat: ${lat}, Lon: ${lon}`;
+    speak(translations[lang].locationCaptured || 'Location captured');
+  }, err=>{
+    locStatus.textContent = 'Permission denied or error';
+  }, { timeout:15000, maximumAge:60000 });
+});
+
+/* ---------------------------
+   Voice recognition (commands)
+   --------------------------- */
+const voiceToggle = document.getElementById('voiceToggle');
+const voiceStatusEl = document.getElementById('voiceStatus');
+let recognition = null;
+if('webkitSpeechRecognition' in window || 'SpeechRecognition' in window){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SR();
+  recognition.continuous = false; recognition.interimResults = false;
+  recognition.lang = 'en-IN';
+  recognition.onstart = ()=>{ recognizing = true; voiceStatusEl.textContent = 'on'; setLanguage(lang); updateVoiceButton(); };
+  recognition.onend = ()=>{ recognizing = false; voiceStatusEl.textContent = 'off'; setLanguage(lang); updateVoiceButton(); };
+  recognition.onerror = (e)=>{ console.error(e); recognizing=false; voiceStatusEl.textContent='error'; updateVoiceButton(); };
+  recognition.onresult = (evt)=>{
+    const text = evt.results[0][0].transcript.trim();
+    console.log('Voice:', text);
+    handleVoiceCommand(text.toLowerCase());
+  };
+} else {
+  voiceToggle.disabled = true; voiceToggle.textContent = 'Voice unavailable';
+}
+
+function updateVoiceButton(){
+  const t = translations[lang];
+  voiceToggle.textContent = recognizing ? (t.voiceStop || 'Stop Voice') : (t.voiceStart || 'Start Voice');
+  voiceStatusEl.textContent = recognizing ? 'on' : 'off';
+}
+
+voiceToggle.addEventListener('click', ()=>{
+  if(!recognition) return alert('Voice not supported in this browser');
+  if(recognizing){ recognition.stop(); }
+  else { recognition.lang = (lang==='en'?'en-IN': (lang==='kn'?'kn-IN': (lang==='hi'?'hi-IN':'ta-IN')) ); recognition.start(); }
+});
+
+function handleVoiceCommand(text){
+  // simple parsing
+  if(text.includes('add')){
+    // ex: add 2 tomato
+    const parts = text.split(' ');
+    let qty = 1; let id = null;
+    for(let i=0;i<parts.length;i++){
+      const p = parts[i];
+      if(!isNaN(parseInt(p))) qty = parseInt(p);
+      // match product by name keyword
+      catalogData.forEach(prod=>{
+        const names = [prod.name.en, (prod.name[lang]||'' )].join(' ').toLowerCase();
+        if(names.includes(p)) id = prod.id;
+      });
+    }
+    if(id){
+      const item = catalogData.find(x=>x.id===id);
+      const name = (item.name[lang] || item.name.en);
+      if(cart[id]) cart[id].qty += qty; else cart[id] = { item, qty, name };
+      updateCartUI(); speak(name + ' added');
+      return;
+    }
+  }
+  if(text.includes('remove') || text.includes('delete')){
+    catalogData.forEach(prod=>{ if(text.includes(prod.id) || (prod.name.en.toLowerCase().includes(text)) ) delete cart[prod.id]; }); updateCartUI(); speak('Removed'); return;
+  }
+  if(text.includes('checkout') || text.includes('pay')){ document.getElementById('checkoutBtn').click(); speak('Proceeding to checkout'); return; }
+  if(text.includes('repeat')){ document.getElementById('repeatOrderBtn').click(); speak('Repeating last order'); return; }
+  if(text.includes('location') || text.includes('locat')){ document.getElementById('btnLocate').click(); return; }
+  // language switch
+  if(text.includes('kannada') || text.includes('kn')){ setLanguage('kn'); speak('Language set to Kannada'); return; }
+  if(text.includes('hindi') || text.includes('hi')){ setLanguage('hi'); speak('Language set to Hindi'); return; }
+  if(text.includes('tamil') || text.includes('ta')){ setLanguage('ta'); speak('Language set to Tamil'); return; }
+  if(text.includes('english')){ setLanguage('en'); speak('Language set to English'); return; }
+  speak('Command not recognized');
+}
+
+/* text-to-speech */
+function speak(text){
+  try{
+    const s = new SpeechSynthesisUtterance(text);
+    s.lang = (lang==='kn'?'kn-IN': (lang==='hi'?'hi-IN': (lang==='ta'?'ta-IN':'en-IN')));
+    window.speechSynthesis.cancel(); window.speechSynthesis.speak(s);
+  }catch(e){ console.error(e); }
+}
+
+/* ---------------------------
+   Checkout & Mock Payment
+   --------------------------- */
+const checkoutBtn = document.getElementById('checkoutBtn');
+checkoutBtn.addEventListener('click', ()=>{
+  const ids = Object.keys(cart);
+  if(ids.length===0){ alert('Cart is empty. Add items before checkout.'); return; }
+  const address = document.getElementById('addressInput').value.trim();
+  if(!address){ alert('Please enter or capture your shop address.'); return; }
+
+  const checkoutArea = document.getElementById('checkoutArea');
+  const paymentMethod = document.getElementById('paymentMethod').value;
+  let html = `<div class="card" style="padding:12px"><h3>Review Order</h3>`;
+  html += `<div class="muted">Deliver to: <strong>${address}</strong></div>`;
+  html += `<div style="margin-top:8px"><strong>Items:</strong><ul>`;
+  let total = 0;
+  Object.values(cart).forEach(c=>{ html += `<li>${c.name} × ${c.qty} — ₹${c.item.price * c.qty}</li>`; total += c.item.price * c.qty; });
+  html += `</ul></div>`;
+  html += `<div class="muted">Pickup time: <strong>${document.getElementById('pickupTime').value || 'Market hours'}</strong></div>`;
+  html += `<div style="margin-top:8px;font-weight:700">Total: ₹${total}</div>`;
+  html += `<div style="margin-top:10px"><button class="btn" id="payNowBtn">Confirm & Pay (${paymentMethod.toUpperCase()})</button></div>`;
+  html += `</div>`;
+  checkoutArea.innerHTML = html; checkoutArea.style.display = 'block';
+  document.getElementById('payNowBtn').addEventListener('click', ()=>mockPayment(total));
+});
+
+function mockPayment(amount){
+  const method = document.getElementById('paymentMethod').value;
+  if(method==='cod'){ finalizeOrder('COD', { txn:'-'} ); return; }
+  const confirmed = confirm(`Simulate ${method.toUpperCase()} payment of ₹${amount}? Press OK to simulate success.`);
+  if(confirmed){ finalizeOrder(method, { txn:'MOCKTXN'+Date.now() }); } else { alert('Payment cancelled.'); }
+}
+
+/* Finalize and display admin/driver order */
+function finalizeOrder(method, txn){
+  const address = document.getElementById('addressInput').value.trim();
+  const instructions = document.getElementById('instructions').value.trim();
+  const pickup = document.getElementById('pickupTime').value.trim() || 'Market hours';
+  const items = Object.values(cart).map(c=>({ name:c.name, qty:c.qty, price:c.item.price }));
+  const total = items.reduce((s,it)=>s + it.qty*it.price, 0);
+
+  const order = { id: 'ORD' + Date.now(), address, instructions, pickup, items, total, method, txn, created: new Date().toLocaleString() };
+
+  // save last order for repeat
+  localStorage.setItem('veggielink_last_order', JSON.stringify(order));
+
+  // show user success
+  const ca = document.getElementById('checkoutArea');
+  ca.innerHTML = `<div class="success">${translations[lang].orderConfirmed || 'Order confirmed!'} <br><strong>Order ID:</strong> ${order.id} <br><strong>Total:</strong> ₹${order.total} <br><strong>Payment:</strong> ${order.method.toUpperCase()}</div>`;
+  speak(translations[lang].orderConfirmed || 'Order confirmed!');
+  // clear cart
+  cart = {}; updateCartUI();
+
+  // render admin/driver panel (in real system this would be pushed via backend)
+  renderAdmin(order);
+}
+
+/* Demo admin panel renderer */
+function renderAdmin(order){
+  const ap = document.getElementById('adminPanel');
+  let html = `<div style="padding:10px;border-radius:8px;background:#fff;margin-top:8px">`;
+  html += `<div style="font-weight:700">New Order: ${order.id}</div>`;
+  html += `<div class="muted">Placed: ${order.created}</div>`;
+  html += `<div style="margin-top:8px"><strong>Deliver to:</strong><div>${order.address}</div></div>`;
+  html += `<div style="margin-top:8px"><strong>Items:</strong><ul>`;
+  order.items.forEach(it=>html += `<li>${it.name} × ${it.qty} — ₹${it.qty * it.price}</li>`);
+  html += `</ul></div>`;
+  html += `<div style="margin-top:8px"><strong>Pickup:</strong> ${order.pickup}</div>`;
+  if(order.instructions) html += `<div style="margin-top:8px"><strong>Notes:</strong> ${order.instructions}</div>`;
+  html += `<div style="margin-top:8px"><strong>Total:</strong> ₹${order.total} • <strong>Payment:</strong> ${order.method}</div>`;
+  html += `</div>`;
+  ap.innerHTML = html;
+}
+
+/* Repeat last order button */
+const repeatBtn = document.getElementById('repeatOrderBtn');
+repeatBtn.addEventListener('click', ()=>{
+  const raw = localStorage.getItem('veggielink_last_order');
+  if(!raw) return alert('No previous order found');
+  const order = JSON.parse(raw);
+  // re-populate cart
+  cart = {};
+  order.items.forEach(it=>{
+    // find product by name match
+    const prod = catalogData.find(p=> (p.name[lang]||p.name.en).toLowerCase().includes(it.name.split(' ')[0].toLowerCase()) || (p.name.en.toLowerCase().includes(it.name.split(' ')[0].toLowerCase())) );
+    if(prod) cart[prod.id] = { item:prod, qty:it.qty, name: (prod.name[lang]||prod.name.en) };
+  });
+  updateCartUI();
+  speak('Last order loaded');
+});
+
+/* ---------------------------
+   Init
+   --------------------------- */
+setLanguage(lang); renderCatalog(); updateCartUI();
+
+</script>
+
+</body>
+</html>
